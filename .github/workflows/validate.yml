@@ -1,0 +1,25 @@
+name: Validate static MVP
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate HTML and JS syntax
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import re
+          html = Path('index.html').read_text()
+          class Parser(HTMLParser): pass
+          Parser().feed(html)
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+          assert len(scripts) == 1
+          Path('/tmp/app.js').write_text(scripts[0])
+          print('HTML parsed and JS extracted')
+          PY
+          node --check /tmp/app.js
