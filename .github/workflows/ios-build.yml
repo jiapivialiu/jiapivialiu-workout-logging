@@ -1,0 +1,30 @@
+name: Build iOS Workout App
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select available Xcode
+        run: xcodebuild -version
+      - name: Build iPhone simulator app without signing
+        run: |
+          xcodebuild -project ios/WorkoutLog/WorkoutLog.xcodeproj \
+            -scheme WorkoutLog \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
