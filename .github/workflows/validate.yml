@@ -23,3 +23,6 @@ jobs:
           print('HTML parsed and JS extracted')
           PY
           node --check /tmp/app.js
+
+      - name: Exercise MVP smoke flows
+        run: node tests/smoke.cjs
