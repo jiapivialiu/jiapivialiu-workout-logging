@@ -814,7 +814,7 @@ struct SettingsView: View {
             }
         }
         .fileExporter(isPresented: $showExport,
-                      document: $exportDocument,
+                      document: exportDocument,
                       contentType: .json,
                       defaultFilename: "workout-backup") { result in
             if case .failure(let error) = result { errorText = error.localizedDescription }
