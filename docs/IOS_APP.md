@@ -5,6 +5,8 @@
 ## What this is
 An installable iPhone app with bilingual (中文 / EN) exercise names and UI, exercise tutorial links, editable workout templates, quick set logging, workout history and JSON backup/restore. No server, hosted website, API key, push notifications, or developer-maintained media library.
 
+Workout weights default to pounds (lb). Change the global weight unit between lb and kg from the weight-column menu during a workout or from Settings; existing and historical values are converted automatically for display.
+
 Project location: ios/WorkoutLog/WorkoutLog.xcodeproj
 
 ## GitHub vs. workout records
@@ -12,8 +14,8 @@ GitHub is used for **source control** (app source, built-in starter exercise lis
 
 ## Install on your own iPhone
 
-1. Use a Mac with a compatible Xcode installation (Xcode 16+ recommended).
-2. Clone the repository and open ios/WorkoutLog/WorkoutLog.xcodeproj.
+1. Use a Mac with Xcode 15.4 or later and an iOS 17+ SDK (Xcode 16+ recommended).
+2. From the repository directory, run `open ios/WorkoutLog/WorkoutLog.xcodeproj`.
 3. In Xcode, choose the WorkoutLog target → Signing & Capabilities → check Automatically manage signing → pick your Apple Account's Personal Team / Developer Team.
 4. Connect your iPhone, trust the Mac, and enable Developer Mode on the phone if prompted (Settings → Privacy & Security → Developer Mode).
 5. Select your connected iPhone as the run target and press Run (▶).
@@ -27,7 +29,8 @@ GitHub is used for **source control** (app source, built-in starter exercise lis
 - Templates are editable ordered exercise lists; starter routines are included.
 - Start a routine; prior weights/reps automatically prefill.
 - Mark sets complete and tap Finish to save into History.
-- In History, open a session to adjust weights, reps or completion status.
+- Add an overall workout review before finishing; it is saved with the session and previewed in History.
+- In History, open a session to adjust weights, reps, completion status or the workout review.
 
 ## Data persistence and backup
 - App automatically writes workout-data.json to the app's on-device Documents directory.
@@ -39,6 +42,8 @@ GitHub is used for **source control** (app source, built-in starter exercise lis
 
 ## Quality checks
 - GitHub Actions: Build iOS Workout App (macos-latest, unsigned iOS Simulator build).
+- The repository includes a shared `WorkoutLog` scheme, so Xcode and `xcodebuild` use the same checked-in build definition.
+- Local unsigned Simulator check: `xcodebuild -project ios/WorkoutLog/WorkoutLog.xcodeproj -scheme WorkoutLog -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`.
 - The existing web prototype remains at repository root but is not required by the native app.
 - GitHub Pages is intentionally not used for deployment.
 

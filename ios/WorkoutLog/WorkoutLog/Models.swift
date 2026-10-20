@@ -9,6 +9,47 @@ func tr(_ zh: String, _ en: String, _ language: AppLanguage) -> String {
     language == .zh ? zh : en
 }
 
+enum WeightUnit: String, Codable, CaseIterable, Identifiable {
+    case pounds = "lb"
+    case kilograms = "kg"
+
+    private static let poundsPerKilogram = 2.2046226218
+
+    var id: String { rawValue }
+
+    func label(_ language: AppLanguage) -> String {
+        switch self {
+        case .pounds:
+            return tr("磅 (lb)", "Pounds (lb)", language)
+        case .kilograms:
+            return tr("公斤 (kg)", "Kilograms (kg)", language)
+        }
+    }
+
+    func displayValue(kilograms: Double) -> Double {
+        switch self {
+        case .pounds:
+            return kilograms * Self.poundsPerKilogram
+        case .kilograms:
+            return kilograms
+        }
+    }
+
+    func kilograms(from displayValue: Double) -> Double {
+        switch self {
+        case .pounds:
+            return displayValue / Self.poundsPerKilogram
+        case .kilograms:
+            return displayValue
+        }
+    }
+}
+
+func formattedWeight(_ kilograms: Double, unit: WeightUnit) -> String {
+    unit.displayValue(kilograms: kilograms)
+        .formatted(.number.precision(.fractionLength(0...2)))
+}
+
 enum MuscleGroup: String, Codable, CaseIterable, Identifiable {
     case legs, glutes, hamstrings, back, chest, shoulders, biceps, triceps, core, calves
 
@@ -78,6 +119,7 @@ struct WorkoutTemplate: Identifiable, Codable {
 
 struct TrainingSet: Identifiable, Codable {
     var id: UUID = UUID()
+    // Store a canonical kilogram value; the UI converts to the selected display unit.
     var weight: Double = 0
     var reps: Int = 10
     var completed: Bool = false
@@ -101,10 +143,42 @@ struct WorkoutSession: Identifiable, Codable {
 struct TrackerData: Codable {
     var version: Int = 1
     var language: AppLanguage = .zh
+    var weightUnit: WeightUnit = .pounds
     var exercises: [Exercise] = []
     var templates: [WorkoutTemplate] = []
     var sessions: [WorkoutSession] = []
     var activeSession: WorkoutSession? = nil
+
+    init(version: Int = 1,
+         language: AppLanguage = .zh,
+         weightUnit: WeightUnit = .pounds,
+         exercises: [Exercise] = [],
+         templates: [WorkoutTemplate] = [],
+         sessions: [WorkoutSession] = [],
+         activeSession: WorkoutSession? = nil) {
+        self.version = version
+        self.language = language
+        self.weightUnit = weightUnit
+        self.exercises = exercises
+        self.templates = templates
+        self.sessions = sessions
+        self.activeSession = activeSession
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version, language, weightUnit, exercises, templates, sessions, activeSession
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        language = try container.decode(AppLanguage.self, forKey: .language)
+        weightUnit = try container.decodeIfPresent(WeightUnit.self, forKey: .weightUnit) ?? .pounds
+        exercises = try container.decode([Exercise].self, forKey: .exercises)
+        templates = try container.decode([WorkoutTemplate].self, forKey: .templates)
+        sessions = try container.decode([WorkoutSession].self, forKey: .sessions)
+        activeSession = try container.decodeIfPresent(WorkoutSession.self, forKey: .activeSession)
+    }
 
     static func starter() -> TrackerData {
         let rows: [(String, String, MuscleGroup, String)] = [

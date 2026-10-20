@@ -94,6 +94,12 @@ final class TrackerStore: ObservableObject {
         data.activeSession = session
     }
 
+    func setActiveNotes(_ notes: String) {
+        guard var session = data.activeSession else { return }
+        session.notes = notes
+        data.activeSession = session
+    }
+
     func addActiveExercise(_ id: UUID) {
         guard var session = data.activeSession else { return }
         session.entries.append(WorkoutEntry(exerciseID: id, sets: [initialSet(for: id)]))
@@ -186,6 +192,11 @@ final class TrackerStore: ObservableObject {
         data.sessions[i].name = name
     }
 
+    func setSessionNotes(_ id: UUID, to notes: String) {
+        guard let i = data.sessions.firstIndex(where: { $0.id == id }) else { return }
+        data.sessions[i].notes = notes
+    }
+
     func deleteSessions(_ ids: Set<UUID>) {
         data.sessions.removeAll { ids.contains($0.id) }
     }
@@ -198,14 +209,40 @@ final class TrackerStore: ObservableObject {
 
     func importBackup(_ backup: Data) throws {
         let decoded = try JSONDecoder().decode(TrackerData.self, from: backup)
+        let exerciseIDs = Set(decoded.exercises.map(\.id))
+        let sessions = decoded.sessions + [decoded.activeSession].compactMap { $0 }
+        let sessionIDs = Set(sessions.map(\.id))
+
+        let exercisesAreValid = !decoded.exercises.isEmpty
+            && exerciseIDs.count == decoded.exercises.count
+            && decoded.exercises.allSatisfy { exercise in
+                !exercise.nameEN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !exercise.nameZH.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && (exercise.tutorialURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || exercise.tutorial != nil)
+            }
+        let templatesAreValid = decoded.templates.allSatisfy { template in
+            !template.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && template.exerciseIDs.allSatisfy(exerciseIDs.contains)
+        }
+        let sessionsAreValid = sessionIDs.count == sessions.count
+            && sessions.allSatisfy { session in
+                Set(session.entries.map(\.id)).count == session.entries.count
+                    && session.entries.allSatisfy { entry in
+                        exerciseIDs.contains(entry.exerciseID)
+                            && Set(entry.sets.map(\.id)).count == entry.sets.count
+                            && entry.sets.allSatisfy {
+                                $0.weight.isFinite && $0.weight >= 0 && $0.reps >= 0
+                            }
+                    }
+            }
+        let templateIDsAreUnique = Set(decoded.templates.map(\.id)).count == decoded.templates.count
+
         guard decoded.version == 1,
-              !decoded.exercises.isEmpty,
-              decoded.exercises.allSatisfy({ !$0.nameEN.isEmpty && !$0.nameZH.isEmpty }),
-              decoded.sessions.allSatisfy({ session in
-                  session.entries.allSatisfy { entry in
-                      entry.sets.allSatisfy { $0.weight.isFinite && $0.weight >= 0 && $0.reps >= 0 }
-                  }
-              }) else {
+              exercisesAreValid,
+              templateIDsAreUnique,
+              templatesAreValid,
+              sessionsAreValid else {
             throw CocoaError(.fileReadCorruptFile)
         }
         data = decoded

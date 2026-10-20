@@ -167,6 +167,14 @@ struct ActiveWorkoutView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
 
+                    WorkoutReviewEditor(
+                        language: language,
+                        notes: Binding(
+                            get: { store.data.activeSession?.notes ?? "" },
+                            set: { store.setActiveNotes($0) }
+                        )
+                    )
+
                     Button {
                         if store.finishWorkout() {
                             selectedTab = .history
@@ -215,12 +223,44 @@ struct ActiveWorkoutView: View {
     }
 }
 
+struct WorkoutReviewEditor: View {
+    let language: AppLanguage
+    @Binding var notes: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(tr("本次训练复盘", "Workout review", language),
+                  systemImage: "note.text")
+                .font(.headline)
+
+            TextField(
+                tr("记录整体状态、动作感受，以及下次需要调整的内容……",
+                   "Record how the session felt and what to adjust next time…",
+                   language),
+                text: $notes,
+                axis: .vertical
+            )
+            .lineLimit(4...10)
+            .textFieldStyle(.roundedBorder)
+
+            Text(tr("复盘会与本次训练一起保存，并可在历史记录中继续编辑。",
+                    "This review is saved with the workout and remains editable in History.",
+                    language))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15))
+    }
+}
+
 struct WorkoutEntryCard: View {
     @EnvironmentObject private var store: TrackerStore
     let entry: WorkoutEntry
     let sessionID: UUID?
     let canRemoveExercise: Bool
     private var language: AppLanguage { store.data.language }
+    private var weightUnit: WeightUnit { store.data.weightUnit }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -234,7 +274,7 @@ struct WorkoutEntryCard: View {
                             .foregroundStyle(.secondary)
                     }
                     if let last = store.lastCompletedSet(for: entry.exerciseID) {
-                        Text("\(tr("上次", "Last", language)): \(last.weight.formatted()) kg × \(last.reps)")
+                        Text("\(tr("上次", "Last", language)): \(formattedWeight(last.weight, unit: weightUnit)) \(weightUnit.rawValue) × \(last.reps)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -258,7 +298,27 @@ struct WorkoutEntryCard: View {
 
             HStack {
                 Text(tr("组", "Set", language)).frame(width: 30, alignment: .leading)
-                Text(tr("重量 kg", "Weight kg", language)).frame(maxWidth: .infinity)
+                Menu {
+                    ForEach(WeightUnit.allCases) { unit in
+                        Button {
+                            store.data.weightUnit = unit
+                        } label: {
+                            if unit == weightUnit {
+                                Label(unit.label(language), systemImage: "checkmark")
+                            } else {
+                                Text(unit.label(language))
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("\(tr("重量", "Weight", language)) \(weightUnit.rawValue)")
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .accessibilityLabel(tr("选择重量单位", "Choose weight unit", language))
                 Text(tr("次数", "Reps", language)).frame(maxWidth: .infinity)
                 Text("✓").frame(width: 35)
                 Color.clear.frame(width: 27)
@@ -273,6 +333,7 @@ struct WorkoutEntryCard: View {
                         .foregroundStyle(.secondary)
                     TrainingSetRow(set: set,
                                    language: language,
+                                   weightUnit: weightUnit,
                                    onWeight: { store.editSet(entryID: entry.id, setID: set.id,
                                                               sessionID: sessionID, weight: $0) },
                                    onReps: { store.editSet(entryID: entry.id, setID: set.id,
@@ -299,6 +360,7 @@ struct WorkoutEntryCard: View {
 struct TrainingSetRow: View {
     let set: TrainingSet
     let language: AppLanguage
+    let weightUnit: WeightUnit
     let onWeight: (Double) -> Void
     let onReps: (Int) -> Void
     let onToggle: () -> Void
@@ -307,33 +369,37 @@ struct TrainingSetRow: View {
     @State private var weightText: String
     @State private var repsText: String
 
-    init(set: TrainingSet, language: AppLanguage,
+    init(set: TrainingSet, language: AppLanguage, weightUnit: WeightUnit,
          onWeight: @escaping (Double) -> Void,
          onReps: @escaping (Int) -> Void,
          onToggle: @escaping () -> Void,
          onDelete: @escaping () -> Void) {
         self.set = set
         self.language = language
+        self.weightUnit = weightUnit
         self.onWeight = onWeight
         self.onReps = onReps
         self.onToggle = onToggle
         self.onDelete = onDelete
-        _weightText = State(initialValue: set.weight.formatted())
+        _weightText = State(initialValue: formattedWeight(set.weight, unit: weightUnit))
         _repsText = State(initialValue: String(set.reps))
     }
 
     var body: some View {
-        TextField("kg", text: $weightText)
+        TextField(weightUnit.rawValue, text: $weightText)
             .keyboardType(.decimalPad)
             .multilineTextAlignment(.center)
             .textFieldStyle(.roundedBorder)
-            .accessibilityLabel(tr("重量 kg", "Weight kg", language))
+            .accessibilityLabel("\(tr("重量", "Weight", language)) \(weightUnit.rawValue)")
             .frame(maxWidth: .infinity)
             .onChange(of: weightText) { _, value in
                 let normalized = value.replacingOccurrences(of: ",", with: ".")
                 if let number = Double(normalized), number.isFinite, number >= 0 {
-                    onWeight(number)
+                    onWeight(weightUnit.kilograms(from: number))
                 }
+            }
+            .onChange(of: weightUnit) { _, unit in
+                weightText = formattedWeight(set.weight, unit: unit)
             }
 
         TextField(tr("次数", "Reps", language), text: $repsText)
@@ -688,6 +754,12 @@ struct WorkoutHistoryView: View {
                         Text("\(session.entries.count) \(tr("个动作", "exercises", language))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if !session.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Label(session.notes, systemImage: "note.text")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -721,6 +793,14 @@ struct WorkoutDetailView: View {
                         WorkoutEntryCard(entry: entry, sessionID: id,
                                          canRemoveExercise: false)
                     }
+
+                    WorkoutReviewEditor(
+                        language: language,
+                        notes: Binding(
+                            get: { store.completedSession(id)?.notes ?? "" },
+                            set: { store.setSessionNotes(id, to: $0) }
+                        )
+                    )
                 }
                 .padding()
             } else {
@@ -774,6 +854,24 @@ struct SettingsView: View {
                 Text(tr("切换语言不会改变任何训练数据。",
                         "Changing language never changes workout data.", language))
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section(tr("训练单位", "Workout units", language)) {
+                Picker(tr("重量单位", "Weight unit", language),
+                       selection: Binding(
+                        get: { store.data.weightUnit },
+                        set: { store.data.weightUnit = $0 }
+                       )) {
+                    ForEach(WeightUnit.allCases) { unit in
+                        Text(unit.label(language)).tag(unit)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(tr("切换单位会自动换算重量，不会改变实际记录。",
+                        "Changing units converts displayed weights without changing the underlying records.",
+                        language))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(tr("备份与恢复", "Backup and restore", language)) {

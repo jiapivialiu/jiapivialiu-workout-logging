@@ -1,2 +1,15 @@
 node_modules/
 .DS_Store
+
+# Xcode local/build state
+DerivedData/
+build/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM
+
+# Personal on-device/exported workout data
+workout-data.json
+workout-backup*.json
