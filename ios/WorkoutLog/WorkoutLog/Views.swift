@@ -149,10 +149,20 @@ struct ActiveWorkoutView: View {
                                     set: { store.setActiveName($0) }
                                   ))
                             .font(.title2.bold())
-                        Text(session.date, style: .date)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
+
+                    WorkoutScheduleEditor(
+                        language: language,
+                        start: Binding(
+                            get: { store.data.activeSession?.date ?? session.date },
+                            set: { store.setWorkoutStart($0) }
+                        ),
+                        end: Binding(
+                            get: { store.data.activeSession?.finishedAt },
+                            set: { store.setWorkoutEnd($0) }
+                        ),
+                        allowsAutomaticEnd: true
+                    )
 
                     ForEach(session.entries) { entry in
                         WorkoutEntryCard(entry: entry, sessionID: nil, canRemoveExercise: true)
@@ -220,6 +230,110 @@ struct ActiveWorkoutView: View {
                isPresented: $showFinishWarning) {
             Button("OK", role: .cancel) {}
         }
+    }
+}
+
+struct WorkoutScheduleEditor: View {
+    let language: AppLanguage
+    @Binding var start: Date
+    @Binding var end: Date?
+    let allowsAutomaticEnd: Bool
+
+    private var dateSelection: Binding<Date> {
+        Binding(
+            get: { start },
+            set: { start = replacingDate(in: start, with: $0) }
+        )
+    }
+
+    private var startTimeSelection: Binding<Date> {
+        Binding(
+            get: { start },
+            set: { start = replacingTime(in: start, with: $0) }
+        )
+    }
+
+    private var endTimeSelection: Binding<Date> {
+        Binding(
+            get: { end ?? start.addingTimeInterval(60 * 60) },
+            set: {
+                let base = end ?? start.addingTimeInterval(60 * 60)
+                end = replacingTime(in: base, with: $0)
+            }
+        )
+    }
+
+    private var usesCustomEnd: Binding<Bool> {
+        Binding(
+            get: { end != nil },
+            set: { enabled in
+                end = enabled ? start.addingTimeInterval(60 * 60) : nil
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(tr("训练时间", "Workout time", language), systemImage: "calendar.badge.clock")
+                .font(.headline)
+
+            DatePicker(tr("训练日期", "Workout date", language),
+                       selection: dateSelection,
+                       displayedComponents: .date)
+
+            DatePicker(tr("开始时间", "Start time", language),
+                       selection: startTimeSelection,
+                       displayedComponents: .hourAndMinute)
+
+            if allowsAutomaticEnd {
+                Toggle(tr("手动设置结束时间", "Set end time manually", language),
+                       isOn: usesCustomEnd)
+                if end != nil {
+                    DatePicker(tr("结束时间", "End time", language),
+                               selection: endTimeSelection,
+                               displayedComponents: .hourAndMinute)
+                } else {
+                    Text(tr("完成训练时将自动记录结束时间。",
+                            "The end time will be recorded when you finish the workout.",
+                            language))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                DatePicker(tr("结束时间", "End time", language),
+                           selection: endTimeSelection,
+                           displayedComponents: .hourAndMinute)
+            }
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 15))
+    }
+
+    private func replacingDate(in original: Date, with selected: Date) -> Date {
+        let calendar = Calendar.current
+        let selectedDate = calendar.dateComponents([.year, .month, .day], from: selected)
+        let originalTime = calendar.dateComponents([.hour, .minute, .second], from: original)
+        var components = DateComponents()
+        components.year = selectedDate.year
+        components.month = selectedDate.month
+        components.day = selectedDate.day
+        components.hour = originalTime.hour
+        components.minute = originalTime.minute
+        components.second = originalTime.second
+        return calendar.date(from: components) ?? original
+    }
+
+    private func replacingTime(in original: Date, with selected: Date) -> Date {
+        let calendar = Calendar.current
+        let originalDate = calendar.dateComponents([.year, .month, .day], from: original)
+        let selectedTime = calendar.dateComponents([.hour, .minute], from: selected)
+        var components = DateComponents()
+        components.year = originalDate.year
+        components.month = originalDate.month
+        components.day = originalDate.day
+        components.hour = selectedTime.hour
+        components.minute = selectedTime.minute
+        return calendar.date(from: components) ?? original
     }
 }
 
@@ -748,7 +862,7 @@ struct WorkoutHistoryView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(session.name).font(.headline)
-                        Text(session.date, format: .dateTime.year().month().day())
+                        Text(workoutTimeSummary(session, language: language))
                             .foregroundStyle(.secondary)
                             .font(.caption)
                         Text("\(session.entries.count) \(tr("个动作", "exercises", language))")
@@ -786,8 +900,19 @@ struct WorkoutDetailView: View {
                                 set: { store.renameSession(id, to: $0) }
                               ))
                         .font(.title2.bold())
-                    Text(session.date, format: .dateTime.year().month().day())
-                        .foregroundStyle(.secondary)
+
+                    WorkoutScheduleEditor(
+                        language: language,
+                        start: Binding(
+                            get: { store.completedSession(id)?.date ?? session.date },
+                            set: { store.setWorkoutStart($0, sessionID: id) }
+                        ),
+                        end: Binding(
+                            get: { store.completedSession(id)?.finishedAt },
+                            set: { store.setWorkoutEnd($0, sessionID: id) }
+                        ),
+                        allowsAutomaticEnd: false
+                    )
 
                     ForEach(session.entries) { entry in
                         WorkoutEntryCard(entry: entry, sessionID: id,
@@ -811,6 +936,16 @@ struct WorkoutDetailView: View {
         .navigationTitle(tr("训练详情", "Workout details", language))
         .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+private func workoutTimeSummary(_ session: WorkoutSession, language: AppLanguage) -> String {
+    let start = session.date.formatted(date: .abbreviated, time: .shortened)
+    guard let end = session.finishedAt else {
+        return "\(start) · \(tr("未记录结束时间", "No end time", language))"
+    }
+    let sameDay = Calendar.current.isDate(session.date, inSameDayAs: end)
+    let endText = end.formatted(date: sameDay ? .omitted : .abbreviated, time: .shortened)
+    return "\(start) – \(endText)"
 }
 
 struct WorkoutBackupDocument: FileDocument {

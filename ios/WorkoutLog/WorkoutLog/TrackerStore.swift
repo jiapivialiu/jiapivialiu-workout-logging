@@ -100,6 +100,43 @@ final class TrackerStore: ObservableObject {
         data.activeSession = session
     }
 
+    private func modifySession(_ sessionID: UUID?, action: (inout WorkoutSession) -> Void) {
+        if let sessionID {
+            guard let index = data.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+            var session = data.sessions[index]
+            action(&session)
+            data.sessions[index] = session
+        } else {
+            guard var session = data.activeSession else { return }
+            action(&session)
+            data.activeSession = session
+        }
+    }
+
+    func setWorkoutStart(_ start: Date, sessionID: UUID? = nil) {
+        modifySession(sessionID) { session in
+            let change = start.timeIntervalSince(session.date)
+            session.date = start
+            if let end = session.finishedAt {
+                session.finishedAt = end.addingTimeInterval(change)
+            }
+        }
+    }
+
+    func setWorkoutEnd(_ end: Date?, sessionID: UUID? = nil) {
+        modifySession(sessionID) { session in
+            guard var end else {
+                session.finishedAt = nil
+                return
+            }
+            if end < session.date,
+               let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: end) {
+                end = nextDay
+            }
+            session.finishedAt = end
+        }
+    }
+
     func addActiveExercise(_ id: UUID) {
         guard var session = data.activeSession else { return }
         session.entries.append(WorkoutEntry(exerciseID: id, sets: [initialSet(for: id)]))
@@ -170,7 +207,9 @@ final class TrackerStore: ObservableObject {
         guard var session = data.activeSession,
               session.entries.contains(where: { entry in entry.sets.contains(where: { $0.completed }) })
         else { return false }
-        session.finishedAt = Date()
+        if session.finishedAt == nil {
+            session.finishedAt = max(Date(), session.date)
+        }
         if session.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             session.name = tr("训练记录", "Workout", data.language)
         }
