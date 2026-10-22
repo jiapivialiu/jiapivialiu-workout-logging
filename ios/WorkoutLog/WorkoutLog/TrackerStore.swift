@@ -149,6 +149,16 @@ final class TrackerStore: ObservableObject {
         data.activeSession = session
     }
 
+    func moveWorkoutEntry(_ entryID: UUID, by offset: Int, sessionID: UUID? = nil) {
+        guard offset != 0 else { return }
+        modifySession(sessionID) { session in
+            guard let source = session.entries.firstIndex(where: { $0.id == entryID }) else { return }
+            let destination = source + offset
+            guard session.entries.indices.contains(destination) else { return }
+            session.entries.swapAt(source, destination)
+        }
+    }
+
     private func modifyEntry(
         _ id: UUID,
         sessionID: UUID?,

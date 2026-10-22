@@ -165,7 +165,10 @@ struct ActiveWorkoutView: View {
                     )
 
                     ForEach(session.entries) { entry in
-                        WorkoutEntryCard(entry: entry, sessionID: nil, canRemoveExercise: true)
+                        WorkoutEntryCard(entry: entry,
+                                         sessionID: nil,
+                                         canRemoveExercise: true,
+                                         reorderAvailability: nil)
                     }
 
                     Button {
@@ -373,6 +376,7 @@ struct WorkoutEntryCard: View {
     let entry: WorkoutEntry
     let sessionID: UUID?
     let canRemoveExercise: Bool
+    let reorderAvailability: (canMoveUp: Bool, canMoveDown: Bool)?
     private var language: AppLanguage { store.data.language }
     private var weightUnit: WeightUnit { store.data.weightUnit }
 
@@ -408,6 +412,37 @@ struct WorkoutEntryCard: View {
                     }
                     .accessibilityLabel(tr("移除动作", "Remove exercise", language))
                 }
+            }
+
+            if let availability = reorderAvailability {
+                HStack {
+                    Label(tr("动作顺序", "Exercise order", language),
+                          systemImage: "arrow.up.arrow.down")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        withAnimation {
+                            store.moveWorkoutEntry(entry.id, by: -1, sessionID: sessionID)
+                        }
+                    } label: {
+                        Label(tr("上移", "Up", language), systemImage: "arrow.up")
+                    }
+                    .disabled(!availability.canMoveUp)
+                    .accessibilityLabel(tr("动作上移", "Move exercise up", language))
+
+                    Button {
+                        withAnimation {
+                            store.moveWorkoutEntry(entry.id, by: 1, sessionID: sessionID)
+                        }
+                    } label: {
+                        Label(tr("下移", "Down", language), systemImage: "arrow.down")
+                    }
+                    .disabled(!availability.canMoveDown)
+                    .accessibilityLabel(tr("动作下移", "Move exercise down", language))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             HStack {
@@ -760,6 +795,15 @@ struct TemplateEditorView: View {
 
     private var language: AppLanguage { store.data.language }
 
+    private func moveExercise(_ exerciseID: UUID, by offset: Int) {
+        guard let source = exerciseIDs.firstIndex(of: exerciseID) else { return }
+        let destination = source + offset
+        guard exerciseIDs.indices.contains(destination) else { return }
+        withAnimation {
+            exerciseIDs.swapAt(source, destination)
+        }
+    }
+
     var body: some View {
         Form {
             Section(tr("模板名称", "Template names", language)) {
@@ -768,23 +812,27 @@ struct TemplateEditorView: View {
                           text: $chineseName)
             }
             Section(tr("动作顺序", "Exercise order", language)) {
-                ForEach(exerciseIDs.indices, id: \.self) { index in
+                ForEach(exerciseIDs, id: \.self) { exerciseID in
                     HStack {
-                        Text(store.exercise(exerciseIDs[index])?.name(language) ?? "Exercise")
+                        Text(store.exercise(exerciseID)?.name(language) ?? "Exercise")
                         Spacer()
                         Button {
-                            guard index > 0 else { return }
-                            exerciseIDs.swapAt(index, index - 1)
+                            moveExercise(exerciseID, by: -1)
                         } label: { Image(systemName: "arrow.up") }
-                            .disabled(index == 0)
+                            .buttonStyle(.borderless)
+                            .disabled(exerciseIDs.first == exerciseID)
+                            .accessibilityLabel(tr("动作上移", "Move exercise up", language))
                         Button {
-                            guard index + 1 < exerciseIDs.count else { return }
-                            exerciseIDs.swapAt(index, index + 1)
+                            moveExercise(exerciseID, by: 1)
                         } label: { Image(systemName: "arrow.down") }
-                            .disabled(index + 1 == exerciseIDs.count)
+                            .buttonStyle(.borderless)
+                            .disabled(exerciseIDs.last == exerciseID)
+                            .accessibilityLabel(tr("动作下移", "Move exercise down", language))
                         Button(role: .destructive) {
-                            exerciseIDs.remove(at: index)
+                            exerciseIDs.removeAll { $0 == exerciseID }
                         } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(tr("移除动作", "Remove exercise", language))
                     }
                 }
                 Button {
@@ -914,9 +962,16 @@ struct WorkoutDetailView: View {
                         allowsAutomaticEnd: false
                     )
 
-                    ForEach(session.entries) { entry in
-                        WorkoutEntryCard(entry: entry, sessionID: id,
-                                         canRemoveExercise: false)
+                    ForEach(Array(session.entries.enumerated()), id: \.element.id) { index, entry in
+                        WorkoutEntryCard(
+                            entry: entry,
+                            sessionID: id,
+                            canRemoveExercise: false,
+                            reorderAvailability: (
+                                canMoveUp: index > 0,
+                                canMoveDown: index + 1 < session.entries.count
+                            )
+                        )
                     }
 
                     WorkoutReviewEditor(
