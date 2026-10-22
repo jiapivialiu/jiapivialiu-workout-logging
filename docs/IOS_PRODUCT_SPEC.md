@@ -21,8 +21,11 @@ An offline, bilingual workout tracking app. It is not part of a portfolio websit
 - Finish a session only after one set is marked complete; discard requires confirmation.
 
 ### Exercises (动作库)
-- 35 built-in bilingual exercises covering lower body, upper body and core.
+- 49 built-in bilingual exercises covering lower body, upper body, activation and core stability.
 - Store stable ID, English and Simplified Chinese names, muscle group, aliases, notes and HTTPS tutorial URL. No images/media are produced or hosted.
+- Group and filter the exercise library and exercise picker by one primary muscle group per exercise.
+- Keep direction-specific variations as separate exercises with explicit bilingual qualifiers such as Front-Facing / Side-Facing or Hip Internal Rotation / Hip External Rotation.
+- App updates append only missing built-in exercises by stable ID or bilingual name; they never replace user-created or user-edited exercises.
 - Add/update/archive exercises; archived exercises remain resolvable in previous sessions.
 - Search both languages and aliases regardless of selected UI language.
 - Open a saved tutorial externally (e.g. YouTube, Bilibili, Xiaohongshu).

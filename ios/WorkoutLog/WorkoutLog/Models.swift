@@ -141,7 +141,9 @@ struct WorkoutSession: Identifiable, Codable {
 }
 
 struct TrackerData: Codable {
-    var version: Int = 1
+    static let currentVersion = 2
+
+    var version: Int = currentVersion
     var language: AppLanguage = .zh
     var weightUnit: WeightUnit = .pounds
     var exercises: [Exercise] = []
@@ -149,7 +151,7 @@ struct TrackerData: Codable {
     var sessions: [WorkoutSession] = []
     var activeSession: WorkoutSession? = nil
 
-    init(version: Int = 1,
+    init(version: Int = currentVersion,
          language: AppLanguage = .zh,
          weightUnit: WeightUnit = .pounds,
          exercises: [Exercise] = [],
@@ -180,7 +182,11 @@ struct TrackerData: Codable {
         activeSession = try container.decodeIfPresent(WorkoutSession.self, forKey: .activeSession)
     }
 
-    static func starter() -> TrackerData {
+    private static func stableID(_ index: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index))!
+    }
+
+    static var builtInExercises: [Exercise] {
         let rows: [(String, String, MuscleGroup, String)] = [
             ("Romanian Deadlift", "罗马尼亚硬拉", .hamstrings, "RDL"),
             ("Barbell Hip Thrust", "杠铃臀推", .glutes, "臀推"),
@@ -216,15 +222,73 @@ struct TrackerData: Codable {
             ("Back Extension", "背部挺身", .back, ""),
             ("Dumbbell RDL", "哑铃罗马尼亚硬拉", .hamstrings, ""),
             ("Overhead Press", "杠铃肩推", .shoulders, "OHP"),
-            ("Hip Adduction", "髋内收", .legs, "")
+            ("Hip Adduction", "髋内收", .legs, ""),
+            ("Knee-to-Wall Ankle Mobilization", "跪墙脚踝活动", .calves, "Ankle Rock, 脚踝前移"),
+            ("Single-Leg Spanish Squat", "单腿西班牙蹲", .legs, "Spanish Squat, 西班牙蹲"),
+            ("Scapular Push-Up", "肩胛俯卧撑", .shoulders, "Push-up Plus, Serratus Push-up"),
+            ("Bird Dog", "鸟狗式", .core, "Quadruped Bird Dog"),
+            ("Marching Glute Bridge", "行进式臀桥", .glutes, "Bridge March"),
+            ("Pallof Press", "Pallof 抗旋转推", .core, "Anti-Rotation Press, 抗旋转"),
+            ("Side Plank", "侧平板支撑", .core, ""),
+            ("Low Step-Up", "低台阶上步", .legs, "Step Up"),
+            ("Bear Plank Shoulder Tap", "熊式支撑肩触", .core, "Bear Shoulder Tap"),
+            ("Half-Kneeling Single-Arm Cable Press (Front-Facing)", "半跪姿单臂绳索推（正面）", .chest, "Half-Kneeling Cable Press"),
+            ("Bulgarian Split Squat (Hip Internal-Rotation Bias)", "保加利亚分腿蹲（髋内旋侧重）", .legs, "BSS Internal Rotation"),
+            ("Bulgarian Split Squat (Hip External-Rotation Bias)", "保加利亚分腿蹲（髋外旋侧重）", .glutes, "BSS External Rotation"),
+            ("Cable Single-Leg Romanian Deadlift (Front-Facing)", "龙门架单腿罗马尼亚硬拉（正面）", .hamstrings, "Cable Single-Leg RDL Front Facing"),
+            ("Cable Single-Leg Romanian Deadlift (Side-Facing)", "龙门架单侧罗马尼亚硬拉（侧面）", .glutes, "Cable Single-Leg RDL Side Facing")
         ]
-        func stableID(_ index: Int) -> UUID {
-            UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index))!
-        }
-        let exercises = rows.enumerated().map { index, item in
+        return rows.enumerated().map { index, item in
             Exercise(id: stableID(index + 1), nameEN: item.0, nameZH: item.1,
                      muscle: item.2, aliases: item.3)
         }
+    }
+
+    func migratedToCurrentVersion() -> TrackerData {
+        var merged = self
+        if version < 2 {
+            let primaryMuscleCorrections: [String: MuscleGroup] = [
+                "平板撑": .core,
+                "单腿（瑜伽球靠墙）罗马尼亚硬拉": .glutes,
+                "杠铃硬拉": .hamstrings,
+                "杠铃直腿硬拉": .hamstrings,
+                "龙门架单腿罗马尼亚硬拉（正面）": .hamstrings,
+                "龙门架单侧罗马尼亚硬拉（侧面）": .glutes
+            ]
+            for index in merged.exercises.indices {
+                let chineseName = merged.exercises[index].nameZH
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let muscle = primaryMuscleCorrections[chineseName] {
+                    merged.exercises[index].muscle = muscle
+                }
+            }
+        }
+
+        var existingIDs = Set(exercises.map(\.id))
+        var existingEnglishNames = Set(exercises.map {
+            $0.nameEN.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+        var existingChineseNames = Set(exercises.map {
+            $0.nameZH.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+
+        for exercise in Self.builtInExercises {
+            let englishName = exercise.nameEN.lowercased()
+            let chineseName = exercise.nameZH.lowercased()
+            guard !existingIDs.contains(exercise.id),
+                  !existingEnglishNames.contains(englishName),
+                  !existingChineseNames.contains(chineseName) else { continue }
+            merged.exercises.append(exercise)
+            existingIDs.insert(exercise.id)
+            existingEnglishNames.insert(englishName)
+            existingChineseNames.insert(chineseName)
+        }
+        merged.version = Self.currentVersion
+        return merged
+    }
+
+    static func starter() -> TrackerData {
+        let exercises = builtInExercises
         let templates = [
             WorkoutTemplate(id: stableID(101), name: "Lower Body", nameZH: "下肢训练",
                             exerciseIDs: [2, 1, 5, 6, 11].map(stableID)),

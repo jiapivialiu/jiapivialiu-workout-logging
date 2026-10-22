@@ -579,32 +579,69 @@ struct TrainingSetRow: View {
     }
 }
 
+private struct MuscleGroupFilterPicker: View {
+    let language: AppLanguage
+    @Binding var selection: MuscleGroup?
+
+    var body: some View {
+        Picker(tr("主要肌群", "Primary muscle", language), selection: $selection) {
+            Text(tr("全部肌群", "All muscles", language))
+                .tag(nil as MuscleGroup?)
+            ForEach(MuscleGroup.allCases) { group in
+                Text(group.label(language)).tag(Optional(group))
+            }
+        }
+        .pickerStyle(.menu)
+    }
+}
+
 struct ExercisePickerView: View {
     @EnvironmentObject private var store: TrackerStore
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    @State private var selectedMuscle: MuscleGroup?
     let onSelect: (UUID) -> Void
 
     private var language: AppLanguage { store.data.language }
 
     private var results: [Exercise] {
-        store.data.exercises.filter { !$0.archived && $0.matches(query) }
+        store.data.exercises
+            .filter {
+                !$0.archived && $0.matches(query)
+                    && (selectedMuscle == nil || $0.muscle == selectedMuscle)
+            }
             .sorted { $0.name(language) < $1.name(language) }
     }
 
+    private var visibleGroups: [MuscleGroup] {
+        MuscleGroup.allCases.filter { group in
+            results.contains(where: { $0.muscle == group })
+        }
+    }
+
     var body: some View {
-        List(results) { exercise in
-            Button {
-                onSelect(exercise.id)
-                dismiss()
-            } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(exercise.name(language)).foregroundStyle(.primary)
-                    Text("\(exercise.otherName(language)) · \(exercise.muscle.label(language))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        List {
+            Section {
+                MuscleGroupFilterPicker(language: language, selection: $selectedMuscle)
+            }
+
+            ForEach(visibleGroups) { group in
+                Section(group.label(language)) {
+                    ForEach(results.filter { $0.muscle == group }) { exercise in
+                        Button {
+                            onSelect(exercise.id)
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(exercise.name(language)).foregroundStyle(.primary)
+                                Text(exercise.otherName(language))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 3)
+                        }
+                    }
                 }
-                .padding(.vertical, 3)
             }
         }
         .searchable(text: $query, prompt: tr("中文、英文或别名", "Chinese, English or alias", language))
@@ -622,54 +659,68 @@ struct ExerciseLibraryView: View {
     @State private var query = ""
     @State private var editing: Exercise?
     @State private var showArchived = false
+    @State private var selectedMuscle: MuscleGroup?
 
     private var language: AppLanguage { store.data.language }
     private var results: [Exercise] {
         store.data.exercises
-            .filter { (showArchived || !$0.archived) && $0.matches(query) }
+            .filter {
+                (showArchived || !$0.archived) && $0.matches(query)
+                    && (selectedMuscle == nil || $0.muscle == selectedMuscle)
+            }
             .sorted { $0.name(language) < $1.name(language) }
+    }
+
+    private var visibleGroups: [MuscleGroup] {
+        MuscleGroup.allCases.filter { group in
+            results.contains(where: { $0.muscle == group })
+        }
     }
 
     var body: some View {
         List {
-            Toggle(tr("显示已归档动作", "Show archived exercises", language),
-                   isOn: $showArchived)
-                .font(.footnote)
+            Section {
+                MuscleGroupFilterPicker(language: language, selection: $selectedMuscle)
+                Toggle(tr("显示已归档动作", "Show archived exercises", language),
+                       isOn: $showArchived)
+                    .font(.footnote)
+            }
 
-            ForEach(results) { exercise in
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(exercise.name(language)).font(.headline)
-                            Text(exercise.otherName(language))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button(tr("编辑", "Edit", language)) {
-                            editing = exercise
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    HStack {
-                        Text(exercise.muscle.label(language))
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                        if exercise.archived {
-                            Text(tr("已归档", "Archived", language))
-                                .font(.caption).foregroundStyle(.orange)
-                        }
-                        Spacer()
-                        if let url = exercise.tutorial {
-                            Link(destination: url) {
-                                Label(tr("教程", "Tutorial", language),
-                                      systemImage: "arrow.up.right.square")
-                                    .font(.caption)
+            ForEach(visibleGroups) { group in
+                Section(group.label(language)) {
+                    ForEach(results.filter { $0.muscle == group }) { exercise in
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(exercise.name(language)).font(.headline)
+                                    Text(exercise.otherName(language))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(tr("编辑", "Edit", language)) {
+                                    editing = exercise
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            HStack {
+                                if exercise.archived {
+                                    Text(tr("已归档", "Archived", language))
+                                        .font(.caption).foregroundStyle(.orange)
+                                }
+                                Spacer()
+                                if let url = exercise.tutorial {
+                                    Link(destination: url) {
+                                        Label(tr("教程", "Tutorial", language),
+                                              systemImage: "arrow.up.right.square")
+                                            .font(.caption)
+                                    }
+                                }
                             }
                         }
+                        .padding(.vertical, 3)
                     }
                 }
-                .padding(.vertical, 3)
             }
         }
         .searchable(text: $query, prompt: tr("搜索中文 / English / RDL", "Search 中文 / English / RDL", language))
@@ -732,6 +783,11 @@ struct ExerciseEditorView: View {
                     .autocorrectionDisabled()
                 TextField(tr("备注", "Notes", language), text: $working.notes, axis: .vertical)
                     .lineLimit(2...4)
+                Text(tr("如果朝向或旋转会改变动作侧重，请分别建立动作，并在名称中注明（正面）/（侧面）或（髋内旋）/（髋外旋）。",
+                        "If facing direction or rotation changes the emphasis, save separate exercises and include (Front-Facing)/(Side-Facing) or (Hip Internal Rotation)/(Hip External Rotation) in their names.",
+                        language))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             if store.exercise(working.id) != nil && !working.archived {
                 Section {

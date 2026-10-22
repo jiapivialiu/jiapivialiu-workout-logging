@@ -15,11 +15,12 @@ final class TrackerStore: ObservableObject {
         fileURL = directory.appendingPathComponent("workout-data.json")
         if let saved = try? Data(contentsOf: fileURL),
            let decoded = try? JSONDecoder().decode(TrackerData.self, from: saved),
-           decoded.version == 1 {
-            data = decoded
+           (1...TrackerData.currentVersion).contains(decoded.version) {
+            data = decoded.migratedToCurrentVersion()
         } else {
             data = .starter()
         }
+        persist()
     }
 
     private func persist() {
@@ -294,13 +295,13 @@ final class TrackerStore: ObservableObject {
             }
         let templateIDsAreUnique = Set(decoded.templates.map(\.id)).count == decoded.templates.count
 
-        guard decoded.version == 1,
+        guard (1...TrackerData.currentVersion).contains(decoded.version),
               exercisesAreValid,
               templateIDsAreUnique,
               templatesAreValid,
               sessionsAreValid else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        data = decoded
+        data = decoded.migratedToCurrentVersion()
     }
 }
