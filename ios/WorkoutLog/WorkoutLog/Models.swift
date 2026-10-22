@@ -141,7 +141,7 @@ struct WorkoutSession: Identifiable, Codable {
 }
 
 struct TrackerData: Codable {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     var version: Int = currentVersion
     var language: AppLanguage = .zh
@@ -236,7 +236,8 @@ struct TrackerData: Codable {
             ("Bulgarian Split Squat (Hip Internal-Rotation Bias)", "保加利亚分腿蹲（髋内旋侧重）", .legs, "BSS Internal Rotation"),
             ("Bulgarian Split Squat (Hip External-Rotation Bias)", "保加利亚分腿蹲（髋外旋侧重）", .glutes, "BSS External Rotation"),
             ("Cable Single-Leg Romanian Deadlift (Front-Facing)", "龙门架单腿罗马尼亚硬拉（正面）", .hamstrings, "Cable Single-Leg RDL Front Facing"),
-            ("Cable Single-Leg Romanian Deadlift (Side-Facing)", "龙门架单侧罗马尼亚硬拉（侧面）", .glutes, "Cable Single-Leg RDL Side Facing")
+            ("Cable Single-Leg Romanian Deadlift (Side-Facing)", "龙门架单侧罗马尼亚硬拉（侧面）", .glutes, "Cable Single-Leg RDL Side Facing"),
+            ("Barbell Deadlift", "杠铃硬拉", .hamstrings, "Deadlift, Conventional Deadlift")
         ]
         return rows.enumerated().map { index, item in
             Exercise(id: stableID(index + 1), nameEN: item.0, nameZH: item.1,
@@ -283,22 +284,67 @@ struct TrackerData: Codable {
             existingEnglishNames.insert(englishName)
             existingChineseNames.insert(chineseName)
         }
+
+        if version < 3 {
+            let newFullBodyTemplateIDs = Set([105, 106, 107].map(Self.stableID))
+            let existingTemplateIDs = Set(merged.templates.map(\.id))
+            let existingEnglishNames = Set(merged.templates.map {
+                $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            })
+            let existingChineseNames = Set(merged.templates.map {
+                $0.nameZH.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            })
+            let missingTemplates = Self.builtInTemplates(resolving: merged.exercises).filter {
+                newFullBodyTemplateIDs.contains($0.id)
+                    && !existingTemplateIDs.contains($0.id)
+                    && !existingEnglishNames.contains($0.name.lowercased())
+                    && !existingChineseNames.contains($0.nameZH.lowercased())
+            }
+            merged.templates.append(contentsOf: missingTemplates)
+        }
         merged.version = Self.currentVersion
         return merged
     }
 
+    private static func builtInTemplates(resolving exercises: [Exercise]) -> [WorkoutTemplate] {
+        func exerciseID(_ index: Int) -> UUID {
+            let seed = builtInExercises[index - 1]
+            if exercises.contains(where: { $0.id == seed.id }) {
+                return seed.id
+            }
+            return exercises.first(where: {
+                $0.nameEN.caseInsensitiveCompare(seed.nameEN) == .orderedSame
+                    || $0.nameZH == seed.nameZH
+            })?.id ?? seed.id
+        }
+
+        return [
+            WorkoutTemplate(id: stableID(101), name: "Lower Body", nameZH: "下肢训练",
+                            exerciseIDs: [2, 1, 5, 6, 11].map(exerciseID)),
+            WorkoutTemplate(id: stableID(102), name: "Back & Biceps", nameZH: "背部与肱二头肌",
+                            exerciseIDs: [13, 14, 16, 17, 23].map(exerciseID)),
+            WorkoutTemplate(id: stableID(103), name: "Chest & Shoulders", nameZH: "胸部与肩部",
+                            exerciseIDs: [18, 19, 21, 22, 24].map(exerciseID)),
+            WorkoutTemplate(id: stableID(104), name: "Full Body", nameZH: "全身训练",
+                            exerciseIDs: [3, 1, 13, 18, 25].map(exerciseID)),
+            WorkoutTemplate(id: stableID(105),
+                            name: "Full Body A · Squat + Bench",
+                            nameZH: "全身 A · 深蹲与卧推",
+                            exerciseIDs: [36, 37, 12, 26, 38, 3, 18, 14, 48, 41, 43].map(exerciseID)),
+            WorkoutTemplate(id: stableID(106),
+                            name: "Full Body B · Deadlift + Vertical Push/Pull",
+                            nameZH: "全身 B · 硬拉与垂直推拉",
+                            exerciseIDs: [40, 39, 26, 38, 50, 34, 15, 47, 16, 42].map(exerciseID)),
+            WorkoutTemplate(id: stableID(107),
+                            name: "Full Body C · Unilateral Control",
+                            nameZH: "全身 C · 单边控制",
+                            exerciseIDs: [36, 40, 44, 20, 39, 4, 19, 16, 9, 45, 49].map(exerciseID))
+        ]
+    }
+
     static func starter() -> TrackerData {
         let exercises = builtInExercises
-        let templates = [
-            WorkoutTemplate(id: stableID(101), name: "Lower Body", nameZH: "下肢训练",
-                            exerciseIDs: [2, 1, 5, 6, 11].map(stableID)),
-            WorkoutTemplate(id: stableID(102), name: "Back & Biceps", nameZH: "背部与肱二头肌",
-                            exerciseIDs: [13, 14, 16, 17, 23].map(stableID)),
-            WorkoutTemplate(id: stableID(103), name: "Chest & Shoulders", nameZH: "胸部与肩部",
-                            exerciseIDs: [18, 19, 21, 22, 24].map(stableID)),
-            WorkoutTemplate(id: stableID(104), name: "Full Body", nameZH: "全身训练",
-                            exerciseIDs: [3, 1, 13, 18, 25].map(stableID))
-        ]
+        let templates = builtInTemplates(resolving: exercises)
         return TrackerData(exercises: exercises, templates: templates)
     }
 }

@@ -29,7 +29,7 @@ GitHub is used for **source control** (app source, built-in starter exercise lis
 - Browse or filter both the exercise library and exercise chooser by primary muscle group.
 - Direction-specific movements remain separate entries and use explicit name qualifiers, such as （正面）/ (Front-Facing), （侧面）/ (Side-Facing), （髋内旋）/ (Hip Internal Rotation), and （髋外旋）/ (Hip External Rotation).
 - New app versions append missing built-in exercises without replacing custom exercises or edits.
-- Templates are editable ordered exercise lists with reliable up/down controls; starter routines are included.
+- Templates are editable ordered exercise lists with reliable up/down controls. The built-in routines include three full-body plans ordered as activation, compound lifts and unilateral/stability finishers; app updates append these plans without replacing personal templates.
 - Start a routine; prior weights/reps automatically prefill.
 - Choose the workout date and start time; optionally set an end time or record it automatically when finishing.
 - Mark sets complete and tap Finish to save into History.

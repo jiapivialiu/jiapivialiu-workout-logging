@@ -11,7 +11,7 @@ An offline, bilingual workout tracking app. It is not part of a portfolio websit
 ## MVP features
 
 ### Workout (训练)
-- Start a blank workout or pick one of four seeded templates (Lower Body, Back & Biceps, Chest & Shoulders, Full Body).
+- Start a blank workout or pick one of seven seeded templates, including three ordered full-body plans that progress from activation to compound lifts to unilateral/stability finishers.
 - Session includes a name, timestamp and ordered exercise entries.
 - Add or remove session exercises; each exercise can have arbitrary sets.
 - For a set: decimal weight (kg), nonnegative integer repetitions, completion toggle.
@@ -21,7 +21,7 @@ An offline, bilingual workout tracking app. It is not part of a portfolio websit
 - Finish a session only after one set is marked complete; discard requires confirmation.
 
 ### Exercises (动作库)
-- 49 built-in bilingual exercises covering lower body, upper body, activation and core stability.
+- 50 built-in bilingual exercises covering lower body, upper body, activation and core stability.
 - Store stable ID, English and Simplified Chinese names, muscle group, aliases, notes and HTTPS tutorial URL. No images/media are produced or hosted.
 - Group and filter the exercise library and exercise picker by one primary muscle group per exercise.
 - Keep direction-specific variations as separate exercises with explicit bilingual qualifiers such as Front-Facing / Side-Facing or Hip Internal Rotation / Hip External Rotation.
