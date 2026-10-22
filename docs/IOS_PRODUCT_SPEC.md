@@ -29,7 +29,7 @@ An offline, bilingual workout tracking app. It is not part of a portfolio websit
 
 ### History (历史)
 - Saved workouts listed newest first with date.
-- Open past sessions, reorder their exercises, edit their names and per-set weights/repetitions/completion, remove sets or add sets.
+- Open past sessions, append missed exercises at the end, reorder their exercises, edit their names and per-set weights/repetitions/completion, remove sets or add sets.
 - Swipe to delete past sessions.
 - No additional calendar or charts in MVP.
 

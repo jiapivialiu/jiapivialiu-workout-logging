@@ -31,7 +31,7 @@ GitHub is used for **source control** (app source, built-in starter exercise lis
 - Choose the workout date and start time; optionally set an end time or record it automatically when finishing.
 - Mark sets complete and tap Finish to save into History.
 - Add an overall workout review before finishing; it is saved with the session and previewed in History.
-- In History, open a session to reorder exercises or adjust its date/time, weights, reps, completion status or workout review.
+- In History, open a session to append a missed exercise, reorder exercises, or adjust its date/time, weights, reps, completion status or workout review.
 
 ## Data persistence and backup
 - App automatically writes workout-data.json to the app's on-device Documents directory.

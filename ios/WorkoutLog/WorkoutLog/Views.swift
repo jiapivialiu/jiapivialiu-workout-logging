@@ -935,6 +935,7 @@ struct WorkoutHistoryView: View {
 
 struct WorkoutDetailView: View {
     @EnvironmentObject private var store: TrackerStore
+    @State private var showExercisePicker = false
     let id: UUID
     private var language: AppLanguage { store.data.language }
 
@@ -974,6 +975,15 @@ struct WorkoutDetailView: View {
                         )
                     }
 
+                    Button {
+                        showExercisePicker = true
+                    } label: {
+                        Label(tr("补录动作", "Add missed exercise", language), systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+
                     WorkoutReviewEditor(
                         language: language,
                         notes: Binding(
@@ -990,6 +1000,13 @@ struct WorkoutDetailView: View {
         }
         .navigationTitle(tr("训练详情", "Workout details", language))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showExercisePicker) {
+            NavigationStack {
+                ExercisePickerView { exerciseID in
+                    store.addExercise(exerciseID, toCompletedSession: id)
+                }
+            }
+        }
     }
 }
 

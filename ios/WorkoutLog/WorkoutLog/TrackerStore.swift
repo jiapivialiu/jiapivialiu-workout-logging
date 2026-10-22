@@ -143,6 +143,13 @@ final class TrackerStore: ObservableObject {
         data.activeSession = session
     }
 
+    func addExercise(_ exerciseID: UUID, toCompletedSession sessionID: UUID) {
+        let initialSet = initialSet(for: exerciseID)
+        modifySession(sessionID) { session in
+            session.entries.append(WorkoutEntry(exerciseID: exerciseID, sets: [initialSet]))
+        }
+    }
+
     func removeActiveExercise(_ id: UUID) {
         guard var session = data.activeSession else { return }
         session.entries.removeAll { $0.id == id }
